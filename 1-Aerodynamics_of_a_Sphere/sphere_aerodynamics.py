@@ -15,30 +15,41 @@ import os
 version = 2.0
 
 
-def reynolds(v, rho, eta, D):
+def reynolds_number(v, rho, eta, D):
     """
     Reynolds number as a function of velocity (`v`), diameter of the ball (`D`)
     and the air parameters: density (`rho`) and viscosity (`eta`).
     """
+    return (rho*D*v)/eta
 
-    raise NotImplementedError
 
-
-def Cd(re):
+def drag_coefficient(re):
     """
     Drag coefficient in function of reynolds number (`re`), for a spherical
     object obtained on Morrison 2016.
     """
 
-    raise NotImplementedError
+    # Breaking into terms
+    t1 = 24/re
+    t2 = 2.6*(re/5.0)/(1 + (re/5.0)**1.52)
+    t3 = 0.411*(re/2.63e5)**-7.94/(1+(re/2.63e5)**-8.00)
+    t4 = 0.25*(re/10**6)/(1 + (re/10**6))
+
+    return t1 + t2 + t3 + t4
 
 
+@np.vectorize
 def Fd(v, rho, eta, D):
     """
-    Drag force as used in Morrison 2016.
+    Drag force as used in Morrison 2016:
+
+    F_d = 0.5 * C_d * rho * pi*(D/2)^2 * v^2
     """
 
-    raise NotImplementedError
+    Re = reynolds_number(v, rho, eta, D)
+    Cd = drag_coefficient(Re)
+
+    return 0.5 * Cd * rho * np.pi*(D/2)**2 * v**2
 
 
 def Fm(v, rho, eta, D):
