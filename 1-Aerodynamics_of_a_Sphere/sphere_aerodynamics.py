@@ -38,18 +38,22 @@ def drag_coefficient(re):
     return t1 + t2 + t3 + t4
 
 
-@np.vectorize
-def Fd(v, rho, eta, D):
+def Fd(vx, vy, rho, eta, D):
     """
     Drag force as used in Morrison 2016:
 
-    F_d = 0.5 * C_d * rho * pi*(D/2)^2 * v^2
+    F_d = - (0.5 * C_d * rho * pi*(D/2)^2 * v^2) ṽ
     """
+
+    v = np.sqrt(vx**2 + vy**2)
 
     Re = reynolds_number(v, rho, eta, D)
     Cd = drag_coefficient(Re)
 
-    return 0.5 * Cd * rho * np.pi*(D/2)**2 * v**2
+    Fdx = 0.5 * Cd * rho * np.pi*(D/2)**2 * vx**2
+    Fdy = 0.5 * Cd * rho * np.pi*(D/2)**2 * vy**2
+
+    return (-Fdx, -Fdy)
 
 
 def Fm(v, rho, eta, D):
@@ -58,7 +62,6 @@ def Fm(v, rho, eta, D):
     """
 
     raise NotImplementedError
-
 
 
 if __name__ == "__main__":
@@ -74,14 +77,14 @@ if __name__ == "__main__":
 
     #  Initial Conditions
 
-    v0 = 1                  # m/s
+    v0 = 30                  # m/s
     theta_d = 30                  # degrees
     theta = np.radians(theta_d)  # radians
     g = -9.81               # m/s^2
 
     #  Projectile parameters
-    M = 0.1  # kg
-    D = 0.1  # m
+    M = 0.454  # kg
+    D = 0.222  # m
 
     #  Air parameters
     eta = 1.83e-5  # kg/(m s)
@@ -89,18 +92,19 @@ if __name__ == "__main__":
 
     #  Time interval
 
-    t0 = 0                   # s
-    tf = 10                  # s
-    dt = 0.001                # s
+    t0 = 0      # s
+    tf = 10     # s
+    dt = 0.001  # s
 
     #  Decomposing movement
 
     v0x = v0*np.cos(theta)    # m/s
     v0y = v0*np.sin(theta)    # m/s
 
-    # Correct this
-    a0x = Fd(v0x, D, eta)/M + g
-    a0y = Fd(v0y, D, eta)/M
+    Fdx, Fdy = Fd(v0x, v0y, rho, eta, D)
+
+    a0x = Fdx/M
+    a0y = Fdy/M + g
 
     #  Analytical solution
 
@@ -113,7 +117,7 @@ if __name__ == "__main__":
 
     #  Euler's Method
 
-    #    Inializing vectors
+    #    Initializing vectors
 
     ax = np.zeros(tt.shape)
     ay = np.zeros(tt.shape)
@@ -136,19 +140,22 @@ if __name__ == "__main__":
     ay[0] = a0y
 
     for i in range(1, len(x)):
-        # Evolving x
-        x[i]  = x[i - 1] + vx[i - 1]*dt
+        # Evolving in space
+        x[i] = x[i - 1] + vx[i - 1]*dt
+        y[i] = y[i - 1] + vy[i - 1]*dt
+
+        # Evolving velocity
         vx[i] = vx[i - 1] + ax[i - 1]*dt
-        ax[i] = Fd(vx[i], D, eta)/M
-
-        # Evolving y
-        y[i]  = y[i - 1] + vy[i - 1]*dt
         vy[i] = vy[i - 1] + ay[i - 1]*dt
-        ay[i] = Fd(vy[i], D, eta)/M + g
 
-	#  Estimating trajectory parameters
+        # Evolving acceleration
+        Fdx, Fxy = Fd(vx[i], vy[i], rho, eta, D)
+        ax[i] = Fdx/M
+        ay[i] = Fdy/M + g
 
-	#    Maximum height
+    #  Estimating trajectory parameters
+
+    #    Maximum height
 
     y_max_index = np.where(y == y.max())[0][0]
     y_max = y[y_max_index]
@@ -156,7 +163,7 @@ if __name__ == "__main__":
 
     print(f"Point of max: (x, y) = ({y_max_x:0.2f}, {y_max:0.2f}) m")
 
-#    Point of return
+    #    Point of return
 
     y_return_index = np.where(y <= 0)[0][1]
     y_return = y[y_return_index]
@@ -166,26 +173,16 @@ if __name__ == "__main__":
     print(f"Return time: {y_return_t:0.2f} s")
     print(f"Horizontal range: {y_return_x:0.2f} m")
 
-#  Plotting Results
+    #  Plotting Results
 
-    fig = plt.figure(dpi=150)
-    grid = fig.add_gridspec(2, 2)
-    ax1 = fig.add_subplot(grid[0, :])
-    ax2 = fig.add_subplot(grid[1, 0])
-    ax3 = fig.add_subplot(grid[1, 1])
+    fig, ax = plt.subplots(dpi=150)
 
-    fig.suptitle(f"Analytical solution vs Numerical Solution (dt={dt})")
+    fig.suptitle(f"Ideal case vs Air resistance (dt={dt})")
 
-    ax1.set_title("Trajectory")
-    ax1.plot(x_a[mask], y_a[mask], label="Analytical solution")
-    ax1.plot(x[mask], y[mask], label="Numerical Solution")
-    ax1.legend()
-
-    ax2.set_title("Residuals in x")
-    ax2.plot(tt, abs(x_a - x))
-
-    ax3.set_title("Residuals in y")
-    ax3.plot(tt, abs(y_a - y))
+    ax.set_title("Trajectory")
+    ax.plot(x_a[mask], y_a[mask], label="Ideal case")
+    ax.plot(x[mask], y[mask], label="Air resistance")
+    ax.legend()
 
     fig.tight_layout()
 
