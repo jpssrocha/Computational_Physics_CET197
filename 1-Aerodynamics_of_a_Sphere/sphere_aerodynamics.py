@@ -51,10 +51,10 @@ def Fd(vx, vy, rho, eta, D):
     Re = reynolds_number(v, rho, eta, D)
     Cd = drag_coefficient(Re)
 
-    Fdx = 0.5 * Cd * rho * np.pi*(D/2)**2 * vx**2
-    Fdy = 0.5 * Cd * rho * np.pi*(D/2)**2 * vy**2
+    Fdx = - 0.5 * Cd * rho * np.pi*(D/2)**2 * vx**2
+    Fdy = - 0.5 * Cd * rho * np.pi*(D/2)**2 * vy**2
 
-    return [-Fdx, -Fdy]
+    return [Fdx, Fdy]
 
 
 def Fm(vx, vy, omega, rho, D):
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     #  Projectile parameters
     M = 0.454   # kg
     D = 0.222   # m
-    omega = -1e4  # rad/s
+    omega = 6.8  # rad/s
 
     #  Air parameters
     eta = 1.83e-5  # kg/(m s)
@@ -191,7 +191,6 @@ if __name__ == "__main__":
     #  Estimating trajectory parameters
 
     #    Maximum height
-    """
     y_max_index = y.argmax()
     y_max = y[y_max_index]
     y_max_x = x[y_max_index]
@@ -208,17 +207,17 @@ if __name__ == "__main__":
     print(f"Return time: {y_return_t:0.2f} s")
     print(f"Horizontal range: {y_return_x:0.2f} m")
 
-    """
     #  Plotting Results
 
     fig, ax = plt.subplots(dpi=150)
 
     # fig.suptitle(f"Ideal case vs Air resistance (dt={dt})")
 
+    mask = (y >= 0)
 
     ax.set_title("Trajectory")
-    ax.plot(x_a, y_a, label="Ideal case")
-    ax.plot(x, y, label="Air drag + Magnus")
+    ax.plot(x_a[mask], y_a[mask], label="Ideal case")
+    ax.plot(x[mask], y[mask], label="Air drag + Magnus")
     ax.legend()
     ax.set_ylim(0)
     ax.set_xlabel("x position / [m]")
