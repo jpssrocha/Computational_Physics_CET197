@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """
+Aerodynamics of a sphere
+------------------------
 
-Aerodynamics of a ball
-----------------------
-
+This script implements a simulation of a spherical projectile such as a soccer
+ball, with air resistance.
 
 """
 import numpy as np
@@ -25,7 +26,7 @@ def reynolds_number(v, rho, eta, D):
 
 def drag_coefficient(re):
     """
-    Drag coefficient in function of reynolds number (`re`), for a spherical
+    Drag coefficient in function of Reynolds number (`re`), for a spherical
     object obtained on Morrison 2016.
     """
 
@@ -53,15 +54,27 @@ def Fd(vx, vy, rho, eta, D):
     Fdx = 0.5 * Cd * rho * np.pi*(D/2)**2 * vx**2
     Fdy = 0.5 * Cd * rho * np.pi*(D/2)**2 * vy**2
 
-    return (-Fdx, -Fdy)
+    return [-Fdx, -Fdy]
 
 
-def Fm(v, rho, eta, D):
+def Fm(vx, vy, omega, rho, D):
     """
-    Magnus force
+    Magnus force with angular velocity (`omega`) defined on the direction
+    perpendicular to the xy plane so that it appears on the plane. Using the
+    approximation on Aguiar & Rubini (2004):
+
+    Fm = 0.5 * Cm * rho * pi * (D/2)^2 * D/2 * W <vec> V
+
+    Where:
+        W  = (  0,   0, omega)
+        V  = (vx , vy , 0)
+        Cm = 1
     """
 
-    raise NotImplementedError
+    Fmx = 0.5 * rho * np.pi*(D/2)**2 * (D/2) * (-omega*vy)
+    Fmy = 0.5 * rho * np.pi*(D/2)**2 * (D/2) * (omega*vx)
+
+    return [Fmx, Fmy]
 
 
 if __name__ == "__main__":
@@ -77,67 +90,80 @@ if __name__ == "__main__":
 
     #  Initial Conditions
 
-    v0 = 30                  # m/s
-    theta_d = 30                  # degrees
+    v0 = 29.1                  # m/s
+    theta_d = 17.7                  # degrees
     theta = np.radians(theta_d)  # radians
     g = -9.81               # m/s^2
 
     #  Projectile parameters
-    M = 0.454  # kg
-    D = 0.222  # m
+    M = 0.454   # kg
+    D = 0.222   # m
+    omega = -1e4  # rad/s
 
     #  Air parameters
     eta = 1.83e-5  # kg/(m s)
-    rho = 1.224    # kg/m^3
+    rho = 1.05    # kg/m^3
 
     #  Time interval
 
     t0 = 0      # s
-    tf = 10     # s
-    dt = 0.001  # s
+    tf = 5     # s
+    dt = 1e-4  # s
 
     #  Decomposing movement
 
     v0x = v0*np.cos(theta)    # m/s
     v0y = v0*np.sin(theta)    # m/s
 
-    Fdx, Fdy = Fd(v0x, v0y, rho, eta, D)
+    Re0 = reynolds_number(v0, rho, eta, D)
+    Cd0 = drag_coefficient(Re0)
 
-    a0x = Fdx/M
-    a0y = Fdy/M + g
+    Fdx0, Fdy0 = Fd(v0x, v0y, rho, eta, D)
+    Fmx0, Fmy0 = Fm(v0x, v0y, omega, rho, D)
 
-    #  Analytical solution
+    a0x = (Fdx0 + Fmx0)/M
+    a0y = (Fdy0 + Fmy0)/M + g
+
+    #  Idealized case
 
     tt = np.arange(t0, tf, dt)
 
     x_a = v0x*tt
     y_a = v0y*tt + 0.5*g*tt**2
 
-    mask = y_a >= 0  # For plotting
-
     #  Euler's Method
 
     #    Initializing vectors
 
-    ax = np.zeros(tt.shape)
-    ay = np.zeros(tt.shape)
-
-    vx = np.zeros(tt.shape)
-    vy = np.zeros(tt.shape)
+    Re = np.zeros(tt.shape)
+    Cd = np.zeros(tt.shape)
 
     x = np.zeros(tt.shape)
     y = np.zeros(tt.shape)
 
+    vx = np.zeros(tt.shape)
+    vy = np.zeros(tt.shape)
+    v  = np.zeros(tt.shape)
+
+    axx = np.zeros(tt.shape)
+    ay = np.zeros(tt.shape)
+    a  = np.zeros(tt.shape)
+
     #    Setting initial conditions
+
+    Re[0] = Re0
+    Cd[0] = Cd0
 
     x[0] = 0
     y[0] = 0
 
     vx[0] = v0x
     vy[0] = v0y
+    v[0] = v0
 
-    ax[0] = a0x
-    ay[0] = a0y
+    axx[0] = a0x
+    ay[0]  = a0y
+    a[0]   = np.sqrt(a0x**2 + a0y**2)
 
     for i in range(1, len(x)):
         # Evolving in space
@@ -145,19 +171,28 @@ if __name__ == "__main__":
         y[i] = y[i - 1] + vy[i - 1]*dt
 
         # Evolving velocity
-        vx[i] = vx[i - 1] + ax[i - 1]*dt
+        vx[i] = vx[i - 1] + axx[i - 1]*dt
         vy[i] = vy[i - 1] + ay[i - 1]*dt
 
+        # Calculating new forces
+        Fdx, Fdy = Fd(vx[i], vy[i], rho, eta, D)
+        Fmx, Fmy = Fm(vx[i], vy[i], omega, rho, D)
+
         # Evolving acceleration
-        Fdx, Fxy = Fd(vx[i], vy[i], rho, eta, D)
-        ax[i] = Fdx/M
-        ay[i] = Fdy/M + g
+        axx[i] = (Fdx + Fmx)/M
+        ay[i] = (Fdy + Fmy)/M + g
+
+        # Stuff to plot later
+        v[i]  = np.sqrt(vx[i]**2 + vy[i]**2)
+        a[i]  = np.sqrt(axx[i]**2 + ay[i]**2)
+        Re[i] = reynolds_number(v[i], rho, eta, D)
+        Cd[i] = drag_coefficient(Re[i])
 
     #  Estimating trajectory parameters
 
     #    Maximum height
-
-    y_max_index = np.where(y == y.max())[0][0]
+    """
+    y_max_index = y.argmax()
     y_max = y[y_max_index]
     y_max_x = x[y_max_index]
 
@@ -173,22 +208,27 @@ if __name__ == "__main__":
     print(f"Return time: {y_return_t:0.2f} s")
     print(f"Horizontal range: {y_return_x:0.2f} m")
 
+    """
     #  Plotting Results
 
     fig, ax = plt.subplots(dpi=150)
 
-    fig.suptitle(f"Ideal case vs Air resistance (dt={dt})")
+    # fig.suptitle(f"Ideal case vs Air resistance (dt={dt})")
+
 
     ax.set_title("Trajectory")
-    ax.plot(x_a[mask], y_a[mask], label="Ideal case")
-    ax.plot(x[mask], y[mask], label="Air resistance")
+    ax.plot(x_a, y_a, label="Ideal case")
+    ax.plot(x, y, label="Air drag + Magnus")
     ax.legend()
+    ax.set_ylim(0)
+    ax.set_xlabel("x position / [m]")
+    ax.set_ylabel("y position / [m]")
 
     fig.tight_layout()
 
     fig.show()
 
-# Saving results
+    # Saving results
 
     if save_results:
         # Checking if folders are in place

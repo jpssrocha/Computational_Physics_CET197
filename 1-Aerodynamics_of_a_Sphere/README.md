@@ -13,6 +13,6 @@ solution of the idealized case.
 
 ## Version 2
 
-General case with drag coefficient obtained through a relationship obtained via
-empirical data (Morrison, 2016).
-
+General case with drag coefficient calculated through a relationship obtained
+via empirical data (Morrison, 2016), and the Magnus force as defined on Aguiar
+& Rubini 2004.
