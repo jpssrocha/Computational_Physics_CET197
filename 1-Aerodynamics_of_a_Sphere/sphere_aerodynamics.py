@@ -77,59 +77,33 @@ def Fm(vx, vy, omega, rho, D):
     return [Fmx, Fmy]
 
 
-if __name__ == "__main__":
+def simu(v0, theta_d, simu_pars,
+         save_results=False, vizualize_results=True, ideal=False):
+    """
+    Main simulation.
+    """
 
-    #  Options
-
-    save_results = False
-
-    results_root = Path("./results")
-    save_folder = results_root / Path(f"results_v{version}")
-    save_plots = save_folder / Path("plots")
-    save_tables = save_folder / Path("tables")
-
-    #  Initial Conditions
-
-    v0 = 29.1                  # m/s
-    theta_d = 17.7                  # degrees
     theta = np.radians(theta_d)  # radians
-    g = -9.81               # m/s^2
 
-    #  Projectile parameters
-    M = 0.454   # kg
-    D = 0.222   # m
-    omega = 6.8  # rad/s
-
-    #  Air parameters
-    eta = 1.83e-5  # kg/(m s)
-    rho = 1.05    # kg/m^3
-
-    #  Time interval
-
-    t0 = 0      # s
-    tf = 5     # s
-    dt = 1e-4  # s
-
-    #  Decomposing movement
-
+    #  Decomposing initial movement
     v0x = v0*np.cos(theta)    # m/s
     v0y = v0*np.sin(theta)    # m/s
 
-    Re0 = reynolds_number(v0, rho, eta, D)
+    Re0 = reynolds_number(v0, simu_pars["rho"], simu_pars["eta"], simu_pars["D"])
     Cd0 = drag_coefficient(Re0)
 
-    Fdx0, Fdy0 = Fd(v0x, v0y, rho, eta, D)
-    Fmx0, Fmy0 = Fm(v0x, v0y, omega, rho, D)
+    Fdx0, Fdy0 = Fd(v0x, v0y, simu_pars["rho"], simu_pars["eta"], simu_pars["D"])    # N
+    Fmx0, Fmy0 = Fm(v0x, v0y, simu_pars["omega"], simu_pars["rho"], simu_pars["D"])  # N
 
-    a0x = (Fdx0 + Fmx0)/M
-    a0y = (Fdy0 + Fmy0)/M + g
+    a0x = (Fdx0 + Fmx0)/simu_pars["M"]      # m/s^2
+    a0y = (Fdy0 + Fmy0)/simu_pars["M"] + simu_pars["g"]  # m/s^2
 
     #  Idealized case
 
-    tt = np.arange(t0, tf, dt)
+    tt = np.arange(simu_pars["t0"], simu_pars["tf"], simu_pars["dt"])  # s
 
     x_a = v0x*tt
-    y_a = v0y*tt + 0.5*g*tt**2
+    y_a = v0y*tt + 0.5*simu_pars["g"]*tt**2
 
     #  Euler's Method
 
@@ -143,11 +117,11 @@ if __name__ == "__main__":
 
     vx = np.zeros(tt.shape)
     vy = np.zeros(tt.shape)
-    v  = np.zeros(tt.shape)
+    v = np.zeros(tt.shape)
 
     axx = np.zeros(tt.shape)
     ay = np.zeros(tt.shape)
-    a  = np.zeros(tt.shape)
+    a = np.zeros(tt.shape)
 
     #    Setting initial conditions
 
@@ -162,30 +136,30 @@ if __name__ == "__main__":
     v[0] = v0
 
     axx[0] = a0x
-    ay[0]  = a0y
-    a[0]   = np.sqrt(a0x**2 + a0y**2)
+    ay[0] = a0y
+    a[0] = np.sqrt(a0x**2 + a0y**2)
 
     for i in range(1, len(x)):
         # Evolving in space
-        x[i] = x[i - 1] + vx[i - 1]*dt
-        y[i] = y[i - 1] + vy[i - 1]*dt
+        x[i] = x[i - 1] + vx[i - 1]*simu_pars["dt"]
+        y[i] = y[i - 1] + vy[i - 1]*simu_pars["dt"]
 
         # Evolving velocity
-        vx[i] = vx[i - 1] + axx[i - 1]*dt
-        vy[i] = vy[i - 1] + ay[i - 1]*dt
+        vx[i] = vx[i - 1] + axx[i - 1]*simu_pars["dt"]
+        vy[i] = vy[i - 1] + ay[i - 1]*simu_pars["dt"]
 
         # Calculating new forces
-        Fdx, Fdy = Fd(vx[i], vy[i], rho, eta, D)
-        Fmx, Fmy = Fm(vx[i], vy[i], omega, rho, D)
+        Fdx, Fdy = Fd(vx[i], vy[i], simu_pars["rho"], simu_pars["eta"], simu_pars["D"])
+        Fmx, Fmy = Fm(vx[i], vy[i], simu_pars["omega"], simu_pars["rho"], simu_pars["D"])
 
         # Evolving acceleration
-        axx[i] = (Fdx + Fmx)/M
-        ay[i] = (Fdy + Fmy)/M + g
+        axx[i] = (Fdx + Fmx)/simu_pars["M"]
+        ay[i] = (Fdy + Fmy)/simu_pars["M"] + simu_pars["g"]
 
         # Stuff to plot later
         v[i]  = np.sqrt(vx[i]**2 + vy[i]**2)
         a[i]  = np.sqrt(axx[i]**2 + ay[i]**2)
-        Re[i] = reynolds_number(v[i], rho, eta, D)
+        Re[i] = reynolds_number(v[i], simu_pars["rho"], simu_pars["eta"], simu_pars["D"])
         Cd[i] = drag_coefficient(Re[i])
 
     #  Estimating trajectory parameters
@@ -195,7 +169,7 @@ if __name__ == "__main__":
     y_max = y[y_max_index]
     y_max_x = x[y_max_index]
 
-    print(f"Point of max: (x, y) = ({y_max_x:0.2f}, {y_max:0.2f}) m")
+    # print(f"Point of max: (x, y) = ({y_max_x:0.2f}, {y_max:0.2f}) m")
 
     #    Point of return
 
@@ -204,20 +178,90 @@ if __name__ == "__main__":
     y_return_x = x[y_return_index]
     y_return_t = tt[y_return_index]
 
-    print(f"Return time: {y_return_t:0.2f} s")
-    print(f"Horizontal range: {y_return_x:0.2f} m")
+    # print(f"Return time: {y_return_t:0.2f} s")
+    # print(f"Horizontal range: {y_return_x:0.2f} m")
+
+    # Packaging data for returning
+
+    results = {
+                "time": tt,
+                "x_pos": x,
+                "y_pos": y,
+                "x_vel": vx,
+                "y_vel": vy,
+                "speed": v,
+                "x_acc": axx,
+                "y_acc": ay,
+                "accel": a,
+                "Re": Re,
+                "Cd": Cd,
+                "x_ideal": x_a,
+                "y_ideal": y_a
+            }
+
+    results = pd.DataFrame(results)
+
+    trajectory_pars = {
+            "Initial angle": theta_d,
+            "Initial speed": v0,
+            "Horizontal reach": y_return_x,
+            "Maximum height": y_max,
+            "Time of flight": y_return_t
+           }
+
+
+    return [trajectory_pars, results]
+
+
+if __name__ == "__main__":
+
+    #  Options
+
+    save_results = False
+
+    results_root = Path("./results")
+    save_folder = results_root / Path(f"results_v{version}")
+    save_plots = save_folder / Path("plots")
+    save_tables = save_folder / Path("tables")
+
+    #  Initial Conditions
+
+    v0 = 29.1       # m/s
+    theta_d = 17.7  # degrees
+    g = -9.81       # m/s^2
+
+    #  Projectile parameters
+    M = 0.454    # kg
+    D = 0.222    # m
+    omega = 6.8  # rad/s
+
+    #  Air parameters
+    eta = 1.83e-5  # kg/(m s)
+    rho = 1.05     # kg/m^3
+
+    #  Time interval
+
+    t0 = 0     # s
+    tf = 5     # s
+    dt = 1e-4  # s
+
+    #  Encapsulating parameters in a dict so i can save them easily later
+    simulation_parameters = {
+            "g": g, "M": M, "D": D, "omega": omega, "eta": eta, "rho": rho,
+            "t0": t0, "tf": tf, "dt": dt
+            }
+
+    pars, res = simu(v0, theta_d, simulation_parameters)
 
     #  Plotting Results
 
     fig, ax = plt.subplots(dpi=150)
 
-    # fig.suptitle(f"Ideal case vs Air resistance (dt={dt})")
+    mask = (res.y_pos >= 0)
 
-    mask = (y >= 0)
-
-    ax.set_title("Trajectory")
-    ax.plot(x_a[mask], y_a[mask], label="Ideal case")
-    ax.plot(x[mask], y[mask], label="Air drag + Magnus")
+    ax.set_title("trajectory")
+    ax.plot(res.x_ideal[mask], res.y_ideal[mask], label="ideal case")
+    ax.plot(res.x_pos[mask], res.y_pos[mask], label="air drag + magnus")
     ax.legend()
     ax.set_ylim(0)
     ax.set_xlabel("x position / [m]")
@@ -242,14 +286,18 @@ if __name__ == "__main__":
 
         with open(f"{save_folder}/{file_stem}.log", "w") as log:
 
-            log.write(f"Max height       = {y_max:6.2f} m\n"
+            log.write("Simulation parameters:\n\n")
+
+            for i in simulation_parameters:
+                log.write(f"{i} = {simulation_parameters[i]}\n")
+
+            log.write(f"Simulation results:\n\n"
+                      f"Max height       = {y_max:6.2f} m\n"
                       f"Horizontal reach = {y_return_x:6.2f} m\n"
                       f"Flight time      = {y_return_t:6.2f} s")
 
         # Putting results in a single table
-        data_dict = {"time": tt, "x_pos": x, "y_pos": y}
-        data_table = pd.DataFrame(data_dict)
 
         # Saving
-        data_table.to_csv(save_tables / (file_stem + ".csv"), index=False)
+        res.to_csv(save_tables / (file_stem + ".csv"), index=False)
         fig.savefig(save_plots / (file_stem + ".png"), dpi=150)
